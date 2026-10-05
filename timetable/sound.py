@@ -107,7 +107,6 @@ class SoundPlayer:
             import winsound
 
             try:
-                # winsound can't play from memory asynchronously, so play a volume-scaled file.
                 winsound.PlaySound(str(self._prepared(which, volume)), winsound.SND_FILENAME | winsound.SND_ASYNC)
             except (OSError, RuntimeError, wave.Error):
                 pass  # a sound problem must never break the timer

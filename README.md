@@ -4,7 +4,7 @@ An interval timer that floats over your screen, **always on top and click-throug
 where you are in a study or work session without it ever getting in the way. Drawn natively with Qt,
 not an embedded web page.
 
-Inspired by the original Timeline Timer HUD, which is no longer maintained. Not affiliated with it.
+Inspired by the original [Timeline Timer HUD](https://github.com/agsoto/timeline-timer), which is no longer maintained. Not affiliated with it.
 
 ## Features
 
