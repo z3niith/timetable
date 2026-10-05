@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QWidget
 
 from .agenda import format_clock, format_short
 from .engine import State, TimerEngine
+from .sessions import SessionStore
 from .settings import Settings
 
 FULL_H, COMPACT_H, BUTTON_ROW = 86, 46, 32
@@ -25,9 +26,9 @@ class Hud(QWidget):
 
     action = Signal(str)
 
-    def __init__(self, engine: TimerEngine, settings: Settings):
+    def __init__(self, engine: TimerEngine, settings: Settings, store: SessionStore):
         super().__init__()
-        self.engine, self.s = engine, settings
+        self.engine, self.s, self.store = engine, settings, store
         self._flags = None
         self._buttons: dict[str, QRectF] = {}
         self._hover = ""
@@ -85,6 +86,9 @@ class Hud(QWidget):
         compact = self.s.compact
         e = self.engine
         accent = QColor(self.s.accent)
+        session = self.store.current
+        task = session.current_task
+        has_tasks = bool(session.tasks)
 
         opacity = self.s.compact_opacity if compact else self.s.opacity
         opacity = max(0.0, min(1.0, opacity))
@@ -100,10 +104,10 @@ class Hud(QWidget):
         base_h = COMPACT_H if compact else FULL_H
         line_y = 15 if compact else 56
         left = 20.0
-        right = w - (150.0 if compact else 24.0)
+        right = w - ((240.0 if has_tasks else 150.0) if compact else 24.0)
         total = e.total
         if total <= 0:
-            self._text(p, "Agenda is empty. Right-click the tray icon > Edit agenda.", QRectF(0, 0, w, base_h), self._font(12), DIM, Qt.AlignCenter)
+            self._text(p, "Agenda is empty. Right-click the tray icon > Sessions.", QRectF(0, 0, w, base_h), self._font(12), DIM, Qt.AlignCenter)
             self._draw_buttons(p, base_h, accent)
             return
 
@@ -131,14 +135,19 @@ class Hud(QWidget):
 
         if compact:
             self._text(p, countdown, QRectF(w - 150, 14, 132, 28), self._font(20, True, True), clock_color, Qt.AlignRight | Qt.AlignVCenter)
-            if passed_text:
+            if has_tasks:
+                f_task = self._font(10)
+                label = f"Task: {task.text}" if task else "All tasks done"
+                label = QFontMetrics(f_task).elidedText(label, Qt.ElideRight, 214)
+                self._text(p, label, QRectF(w - 232, 2, 214, 16), f_task, DIM if task else accent, Qt.AlignRight | Qt.AlignVCenter)
+            elif passed_text:
                 self._text(p, passed_text, QRectF(w - 220, 2, 202, 16), self._font(10, mono=True), FAINT, Qt.AlignRight | Qt.AlignVCenter)
         else:
-            self._text(p, "Timetable", QRectF(20, 0, 200, 38), self._font(11, True), DIM, Qt.AlignLeft | Qt.AlignVCenter)
             f_name, f_clock = self._font(13), self._font(22, True, True)
             nw = QFontMetrics(f_name).horizontalAdvance(name)
             cw = QFontMetrics(f_clock).horizontalAdvance(countdown)
             x0 = (w - (nw + 14 + cw)) / 2
+            self._draw_session_block(p, session, task, 20.0, x0 - 24, accent)
             self._text(p, name, QRectF(x0, 0, nw + 4, 38), f_name, DIM, Qt.AlignLeft | Qt.AlignVCenter)
             self._text(p, countdown, QRectF(x0 + nw + 14, 0, cw + 8, 38), f_clock, clock_color, Qt.AlignLeft | Qt.AlignVCenter)
             if passed_text:
@@ -186,6 +195,37 @@ class Hud(QWidget):
         p.drawRoundedRect(QRectF(play_x - 4.5, line_y - 4.5, 9, 9), 2, 2)
 
         self._draw_buttons(p, base_h, accent)
+
+    def _draw_session_block(self, p, session, task, x, limit, accent) -> None:
+        """Left side of the header: session name, then the current task with a tick box."""
+        room = limit - x
+        if room < 60:
+            return
+        f_name, f_task = self._font(11, True), self._font(12)
+        name_fm = QFontMetrics(f_name)
+        has_tasks = bool(session.tasks)
+        name = name_fm.elidedText(session.name, Qt.ElideRight, int(room * (0.45 if has_tasks else 1.0)))
+        nw = name_fm.horizontalAdvance(name)
+        self._text(p, name, QRectF(x, 0, nw + 2, 38), f_name, DIM, Qt.AlignLeft | Qt.AlignVCenter)
+        if not has_tasks:
+            return
+        bx = x + nw + 16
+        text_room = limit - bx - 18
+        if text_room < 40:
+            return
+        box = QRectF(bx, 14, 10, 10)
+        p.setBrush(Qt.NoBrush)
+        if task:
+            p.setPen(QPen(DIM, 1.4))
+            p.drawRoundedRect(box, 2, 2)
+            label, colour = task.text, TEXT
+        else:
+            p.setPen(QPen(accent, 1.6, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            p.drawRoundedRect(box, 2, 2)
+            p.drawPolyline([QPointF(bx + 2.2, 19.2), QPointF(bx + 4.4, 21.4), QPointF(bx + 8, 16.4)])
+            label, colour = "All tasks done", accent
+        label = QFontMetrics(f_task).elidedText(label, Qt.ElideRight, int(text_room))
+        self._text(p, label, QRectF(bx + 18, 0, text_room, 38), f_task, colour, Qt.AlignLeft | Qt.AlignVCenter)
 
     def _label(self, p, item, i, x0, x1, line_y, compact, accent) -> None:
         width = x1 - x0
@@ -245,7 +285,7 @@ class Hud(QWidget):
         specs = [
             ("toggle", "Pause" if running else "Start"), ("restart", "Restart"),
             ("minus", "-1 min"), ("plus", "+1 min"), ("skip", "Skip"),
-            ("agenda", "Agenda"), ("compact", "Compact"), ("settings", "Settings"),
+            ("task", "Tick task"), ("sessions", "Sessions"), ("compact", "Compact"), ("settings", "Settings"),
             ("lock", "Lock (click-through)"),
         ]
         f = self._font(11)
