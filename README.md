@@ -16,9 +16,10 @@ where you are in a study or work session without it ever getting in the way.
 
 ## Run it
 
-**Installer (recommended):** download `Timetable-Setup-<version>.exe` from the
+**Winget (recommended):** use command `winget install z3niith.Timetable`.
+
+**Installer (also recommended):** download `Timetable-Setup-<version>.exe` from the
 [Releases page](https://github.com/z3niith/timetable/releases). It installs for your user only, with no admin prompt.
-Once the winget package is accepted: `winget install z3niith.Timetable`.
 
 **From source:** you need Python 3.10 or newer on Windows.
 
