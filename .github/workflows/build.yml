@@ -1,0 +1,59 @@
+name: Build installer
+
+# Manual run: builds the installer and attaches it to the run as an artifact (good for testing).
+# Tag push (v*): also publishes it to a GitHub Release, which is what winget points at.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller pytest
+
+      - name: Test
+        run: python -m pytest -q
+
+      - name: Work out version
+        id: ver
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart("v") } else { $v = "0.0.0-dev" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Build app folder (PyInstaller)
+        run: pyinstaller --noconsole --onedir --name Timetable --icon assets/icon.ico --noconfirm run.py
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=${{ steps.ver.outputs.version }} installer\Timetable.iss'
+
+      - name: Print SHA256 (needed for the winget manifest)
+        shell: pwsh
+        run: Get-FileHash dist\Timetable-Setup-${{ steps.ver.outputs.version }}.exe -Algorithm SHA256 | Format-List
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Timetable-Setup
+          path: dist/Timetable-Setup-${{ steps.ver.outputs.version }}.exe
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Timetable-Setup-${{ steps.ver.outputs.version }}.exe
+          generate_release_notes: true

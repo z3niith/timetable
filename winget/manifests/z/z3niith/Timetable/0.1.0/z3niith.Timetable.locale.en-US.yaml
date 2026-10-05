@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+PackageIdentifier: z3niith.Timetable
+PackageVersion: 0.1.0
+PackageLocale: en-US
+Publisher: z3niith
+PublisherUrl: https://github.com/z3niith
+PublisherSupportUrl: https://github.com/z3niith/timetable/issues
+PackageName: Timetable
+PackageUrl: https://github.com/z3niith/timetable
+License: MIT
+LicenseUrl: https://github.com/z3niith/timetable/blob/main/LICENSE
+ShortDescription: A click-through, always-on-top interval timer HUD for study and work sessions.
+Description: Timetable floats over your screen as a click-through overlay showing your session as a timeline, with a compact mode, a ding at the end of each interval, and global hotkeys. Lives in the system tray.
+Tags:
+- timer
+- pomodoro
+- interval-timer
+- productivity
+- study
+- overlay
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

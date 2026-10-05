@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+PackageIdentifier: z3niith.Timetable
+PackageVersion: 0.1.0
+InstallerLocale: en-US
+InstallerType: inno
+Scope: user
+InstallModes:
+- interactive
+- silent
+- silentWithProgress
+UpgradeBehavior: install
+Installers:
+- Architecture: x64
+  InstallerUrl: https://github.com/z3niith/timetable/releases/download/v0.1.0/Timetable-Setup-0.1.0.exe
+  InstallerSha256: REPLACE_WITH_SHA256_FROM_THE_BUILD_LOG
+ManifestType: installer
+ManifestVersion: 1.6.0
