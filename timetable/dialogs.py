@@ -6,49 +6,118 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QCheckBox, QColorDialog, QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout,
-    QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSlider, QSpinBox, QVBoxLayout, QWidget,
+    QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSlider, QSpinBox, QTabWidget, QVBoxLayout, QWidget,
 )
 
 from .agenda import format_short, parse_agenda
+from .sessions import format_tasks, parse_tasks
 from .settings import Settings
 
 
-class AgendaDialog(QDialog):
-    """Live agenda editor: every edit is applied to the running timer."""
+class SessionDialog(QDialog):
+    """Pick, create and edit sessions. Every edit is applied to the running timer straight away.
 
-    changed = Signal(str)
+    This window only shows things and emits signals; the controller owns the data.
+    """
 
-    def __init__(self, text: str, parent: QWidget | None = None):
+    switch_requested = Signal(str)
+    new_requested = Signal()
+    duplicate_requested = Signal()
+    rename_requested = Signal()
+    delete_requested = Signal()
+    agenda_changed = Signal(str)
+    tasks_changed = Signal(str)
+
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self.setWindowTitle("Edit agenda")
-        self.resize(520, 480)
-        self.edit = QPlainTextEdit(text)
+        self.setWindowTitle("Sessions")
+        self.resize(560, 560)
+
+        self.combo = QComboBox()
+        new, dup = QPushButton("New"), QPushButton("Duplicate")
+        ren, dele = QPushButton("Rename"), QPushButton("Delete")
+        top = QHBoxLayout()
+        top.addWidget(QLabel("Choose your session"))
+        top.addWidget(self.combo, 1)
+        for b in (new, dup, ren, dele):
+            top.addWidget(b)
+
         mono = QFont("Cascadia Mono")
         mono.setStyleHint(QFont.Monospace)
-        self.edit.setFont(mono)
-        self.status = QLabel()
-        hint = QLabel("One interval per line: a name, then a length like 50m, 1h30m, 45s. "
-                      "A bare number means minutes. Lines starting with # are ignored.")
-        hint.setWordWrap(True)
+        self.agenda = QPlainTextEdit()
+        self.agenda.setFont(mono)
+        self.tasks = QPlainTextEdit()
+        self.tasks.setFont(mono)
+        self.tasks.setPlaceholderText("Read chapter 3\nPractice problems\n[x] Already done")
+        self.agenda_status, self.tasks_status = QLabel(), QLabel()
+
+        self.tabs = QTabWidget()
+        self.tabs.addTab(self._tab(
+            "One interval per line: a name, then a length like 50m, 1h30m, 45s. "
+            "A bare number means minutes. Lines starting with # are ignored.",
+            self.agenda, self.agenda_status), "Agenda")
+        self.tabs.addTab(self._tab(
+            "Your to-do list for this session, one task per line. Start a line with [x] if it is done. "
+            "Tick the next task from the HUD or with Ctrl+Alt+Enter.",
+            self.tasks, self.tasks_status), "Tasks")
+
         lay = QVBoxLayout(self)
-        lay.addWidget(hint)
-        lay.addWidget(self.edit)
-        lay.addWidget(self.status)
-        self.edit.textChanged.connect(self._on_change)
+        lay.addLayout(top)
+        lay.addWidget(self.tabs)
+
+        self.combo.activated.connect(lambda i: self.switch_requested.emit(self.combo.itemData(i)))
+        new.clicked.connect(self.new_requested)
+        dup.clicked.connect(self.duplicate_requested)
+        ren.clicked.connect(self.rename_requested)
+        dele.clicked.connect(self.delete_requested)
+        self.agenda.textChanged.connect(self._agenda_edited)
+        self.tasks.textChanged.connect(self._tasks_edited)
+
+    @staticmethod
+    def _tab(hint: str, editor: QPlainTextEdit, status: QLabel) -> QWidget:
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        label = QLabel(hint)
+        label.setWordWrap(True)
+        lay.addWidget(label)
+        lay.addWidget(editor)
+        lay.addWidget(status)
+        return page
+
+    def refresh(self, store) -> None:
+        """Show the store's current state without triggering edit signals."""
+        self.combo.blockSignals(True)
+        self.combo.clear()
+        for session in store.sessions:
+            self.combo.addItem(session.name, session.id)
+        self.combo.setCurrentIndex(max(0, self.combo.findData(store.current_id)))
+        self.combo.blockSignals(False)
+        self._set(self.agenda, store.current.agenda)
+        self._set(self.tasks, format_tasks(store.current.tasks))
         self._update_status()
 
-    def set_text(self, text: str) -> None:
-        if text != self.edit.toPlainText():
-            self.edit.setPlainText(text)
+    @staticmethod
+    def _set(editor: QPlainTextEdit, text: str) -> None:
+        if editor.toPlainText() != text:
+            editor.blockSignals(True)
+            editor.setPlainText(text)
+            editor.blockSignals(False)
 
     def _update_status(self) -> None:
-        items = parse_agenda(self.edit.toPlainText())
+        items = parse_agenda(self.agenda.toPlainText())
         total = sum(i.seconds for i in items)
-        self.status.setText(f"{len(items)} intervals, {format_short(total)} total" if items else "No valid intervals yet")
+        self.agenda_status.setText(f"{len(items)} intervals, {format_short(total)} total" if items else "No valid intervals yet")
+        tasks = parse_tasks(self.tasks.toPlainText())
+        done = sum(t.done for t in tasks)
+        self.tasks_status.setText(f"{done} of {len(tasks)} done" if tasks else "No tasks")
 
-    def _on_change(self) -> None:
+    def _agenda_edited(self) -> None:
         self._update_status()
-        self.changed.emit(self.edit.toPlainText())
+        self.agenda_changed.emit(self.agenda.toPlainText())
+
+    def _tasks_edited(self) -> None:
+        self._update_status()
+        self.tasks_changed.emit(self.tasks.toPlainText())
 
 
 class SettingsDialog(QDialog):

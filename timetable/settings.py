@@ -55,7 +55,7 @@ class Settings:
     volume: float = 0.7
     sound_file: str = ""           # optional custom ding (.wav)
     autostart: bool = False
-    agenda: str = DEFAULT_AGENDA
+    agenda: str = DEFAULT_AGENDA   # legacy (v0.1): only used once to create the first session
 
     @classmethod
     def load(cls) -> "Settings":

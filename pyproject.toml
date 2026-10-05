@@ -1,6 +1,6 @@
 [project]
 name = "timetable"
-version = "0.1.0"
+version = "0.2.0"
 description = "A click-through, always-on-top interval timer HUD for Windows, built with Qt (no web view)."
 readme = "README.md"
 requires-python = ">=3.10"
