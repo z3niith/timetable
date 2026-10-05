@@ -67,20 +67,9 @@ python -m pytest
 
 The timer logic (`engine.py`, `agenda.py`) has no GUI dependency and is unit tested.
 
-## Releasing
-
-1. Run the **Build installer** workflow manually (Actions tab) to check it builds. It attaches the installer to the run.
-2. Tag and push: `git tag v0.1.1 && git push origin v0.1.1`. The workflow builds the installer and publishes a GitHub Release.
-3. Copy the SHA256 printed in the workflow log, then publish to winget:
-   ```powershell
-   winget install wingetcreate
-   wingetcreate update z3niith.Timetable --version 0.1.1 --urls https://github.com/z3niith/timetable/releases/download/v0.1.1/Timetable-Setup-0.1.1.exe --submit
-   ```
-   For the very first submission use `wingetcreate new <installer url>`, or fill in the templates under `winget/`.
-
 ## Ideas for later
 
-Left/right docking, multi-monitor choice, per-interval colours, saved agenda presets, seeking by clicking the timeline.
+Left/right docking, multi-monitor choice, per-interval colors, saved agenda presets, seeking by clicking the timeline.
 
 ## License
 
