@@ -44,7 +44,6 @@ class Hotkeys(QAbstractNativeEventFilter):
 
     def nativeEventFilter(self, event_type, message):  # noqa: N802 (Qt naming)
         if self.enabled and bytes(event_type) == b"windows_generic_MSG":
-            import ctypes
             from ctypes import wintypes
 
             msg = wintypes.MSG.from_address(int(message))

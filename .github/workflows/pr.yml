@@ -1,0 +1,107 @@
+name: PR checks
+
+# Runs on every pull request into main. Mirrors the rules in CONTRIBUTING.md:
+# Conventional Commit title, tests pass, no code errors, and a demo in the description.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+    branches: [main]
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  title:
+    name: Conventional Commit title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+
+  lint:
+    name: Lint (ruff)
+    if: github.event.action != 'edited' && github.event.action != 'labeled' && github.event.action != 'unlabeled'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check . --output-format=github
+
+  test:
+    name: Tests (Windows, Python ${{ matrix.python }})
+    if: github.event.action != 'edited' && github.event.action != 'labeled' && github.event.action != 'unlabeled'
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: pip install -r requirements.txt pytest
+      - name: Byte-compile (catches syntax errors)
+        run: python -m compileall -q timetable
+      - run: python -m pytest -q
+
+  demo:
+    name: Description has a demo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || "";
+            const labels = pr.labels.map((l) => l.name);
+            const type = ((pr.title || "").match(/^(\w+)(\([^)]*\))?!?:/) || [])[1];
+            const exemptTypes = ["docs", "ci", "test", "chore", "build", "style"];
+
+            if (pr.user.type === "Bot" || labels.includes("no-demo") || exemptTypes.includes(type)) {
+              core.info("A demo is not required for this PR.");
+              return;
+            }
+
+            const hasMedia = /!\[[^\]]*\]\([^)]+\)|<img\s|<video\s|user-attachments\/|\.(png|jpe?g|gif|webp|mp4|mov|webm)\b|youtu\.?be|imgur\.com|streamable\.com/i.test(body);
+
+            // Ignore template boilerplate (comments, headings, checklist lines, images) when judging length.
+            const prose = body
+              .replace(/<!--[\s\S]*?-->/g, "")
+              .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+              .split("\n")
+              .filter((line) => !/^\s*(#|- \[)/.test(line))
+              .join(" ")
+              .trim();
+
+            const problems = [];
+            if (!hasMedia) problems.push("Add a screenshot, video or GIF showing the change (drag the file into the description).");
+            if (prose.length < 80) problems.push("Explain what you changed and how it works (a few sentences).");
+
+            if (problems.length) {
+              core.setFailed("CONTRIBUTING.md asks for a demo and an explanation:\n- " + problems.join("\n- ") +
+                "\nMaintainers can add the 'no-demo' label if a demo doesn't apply.");
+            }
