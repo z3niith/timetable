@@ -1,10 +1,7 @@
 # Timetable
 
 An interval timer that floats over your screen, **always on top and click-through**, so you can see
-where you are in a study or work session without it ever getting in the way. Drawn natively with Qt,
-not an embedded web page.
-
-Inspired by the original Timeline Timer HUD, which is no longer maintained. Not affiliated with it.
+where you are in a study or work session without it ever getting in the way.
 
 ## Features
 
@@ -22,11 +19,18 @@ Inspired by the original Timeline Timer HUD, which is no longer maintained. Not 
 
 ## Run it
 
+**Winget (recommended):** Run the winget command:
+```powershell
+winget install z3niith.Timetable
+```
+
 **Installer (recommended):** download `Timetable-Setup-<version>.exe` from the
 [Releases page](https://github.com/z3niith/timetable/releases). It installs for your user only, with no admin prompt.
 Once the winget package is accepted: `winget install z3niith.Timetable`.
 
-**From source:** you need Python 3.10 or newer on Windows.
+
+
+**From source (not recommended):** you need Python 3.10 or newer on Windows.
 
 ```powershell
 python -m pip install -r requirements.txt
@@ -85,17 +89,6 @@ ruff check .
 ```
 
 The timer logic (`engine.py`, `agenda.py`) has no GUI dependency and is unit tested.
-
-## Releasing
-
-1. Run the **Build installer** workflow manually (Actions tab) to check it builds. It attaches the installer to the run.
-2. Tag and push: `git tag v0.1.1 && git push origin v0.1.1`. The workflow builds the installer and publishes a GitHub Release.
-3. Copy the SHA256 printed in the workflow log, then publish to winget:
-   ```powershell
-   winget install wingetcreate
-   wingetcreate update z3niith.Timetable --version 0.1.1 --urls https://github.com/z3niith/timetable/releases/download/v0.1.1/Timetable-Setup-0.1.1.exe --submit
-   ```
-   For the very first submission use `wingetcreate new <installer url>`, or fill in the templates under `winget/`.
 
 ## Ideas for later
 
