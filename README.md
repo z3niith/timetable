@@ -1,10 +1,7 @@
 # Timetable
 
 An interval timer that floats over your screen, **always on top and click-through**, so you can see
-where you are in a study or work session without it ever getting in the way. Drawn natively with Qt,
-not an embedded web page.
-
-Inspired by the original [Timeline Timer HUD](https://github.com/agsoto/timeline-timer), which is no longer maintained. Not affiliated with it.
+where you are in a study or work session without it ever getting in the way.
 
 ## Features
 
