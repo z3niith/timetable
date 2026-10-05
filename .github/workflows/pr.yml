@@ -1,7 +1,5 @@
 name: PR checks
 
-# Runs on every pull request into main. Mirrors the rules in CONTRIBUTING.md:
-# Conventional Commit title, tests pass, no code errors, and a demo in the description.
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened, labeled, unlabeled]
@@ -39,7 +37,6 @@ jobs:
 
   lint:
     name: Lint (ruff)
-    if: github.event.action != 'edited' && github.event.action != 'labeled' && github.event.action != 'unlabeled'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +48,6 @@ jobs:
 
   test:
     name: Tests (Windows, Python ${{ matrix.python }})
-    if: github.event.action != 'edited' && github.event.action != 'labeled' && github.event.action != 'unlabeled'
     runs-on: windows-latest
     strategy:
       fail-fast: false
