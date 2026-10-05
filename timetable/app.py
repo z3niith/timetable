@@ -216,4 +216,4 @@ def main() -> int:
     if not QSystemTrayIcon.isSystemTrayAvailable():
         print("No system tray available; controls will not be reachable.", file=sys.stderr)
     ctl = Controller(app)  # noqa: F841 (kept alive by the event loop)
-    return app.exec(
+    return app.exec()
