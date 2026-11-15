@@ -40,6 +40,7 @@ def config_dir() -> Path:
 @dataclass
 class Settings:
     dock: str = "top"              # "top" or "bottom"
+    monitor: str = ""              # which screen to use; empty = the primary one
     margin: int = 0                # px from the screen edge
     opacity: float = 0.88          # full-mode background opacity, 0.0 (clear) to 1.0
     compact_opacity: float = 0.0   # compact-mode background opacity, 0.0 (clear) to 1.0

@@ -28,6 +28,8 @@ class TimerEngine:
         self._last = 0.0
         # Set by the UI: called with (finished item, was_last)
         self.on_interval_end: Callable[[Item, bool], None] = lambda item, last: None
+        # Called when an interval begins (start, skip, or the one after a finished interval).
+        self.on_interval_start: Callable[[Item], None] = lambda item: None
 
     @property
     def current(self) -> Item | None:
@@ -57,8 +59,11 @@ class TimerEngine:
             self.restart()
         if not self.items:
             return
+        fresh = self.state is State.IDLE and self.elapsed == 0
         self._last = self._clock()
         self.state = State.RUNNING
+        if fresh and self.current:
+            self.on_interval_start(self.current)
 
     def pause(self) -> None:
         if self.state is State.RUNNING:
@@ -86,6 +91,8 @@ class TimerEngine:
         self.index += 1
         self.elapsed = 0.0
         self._last = self._clock()
+        if self.state is not State.IDLE and self.current:
+            self.on_interval_start(self.current)
 
     def adjust(self, delta_seconds: float) -> None:
         """Lengthen or shorten the current interval (never below elapsed + 1s)."""
@@ -125,3 +132,5 @@ class TimerEngine:
             else:
                 self.index += 1
             self.on_interval_end(finished, last)
+            if not last and self.current:
+                self.on_interval_start(self.current)

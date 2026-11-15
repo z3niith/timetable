@@ -6,11 +6,12 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QCheckBox, QColorDialog, QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout,
-    QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSlider, QSpinBox, QTabWidget, QVBoxLayout, QWidget,
+    QApplication, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSlider, QSpinBox, QTabWidget, QVBoxLayout, QWidget,
 )
 
 from .agenda import format_short, parse_agenda
-from .sessions import format_tasks, parse_tasks
+from .screens import screen_key
+from .sessions import PALETTE, format_tasks, parse_tasks
 from .settings import Settings
 
 
@@ -27,6 +28,7 @@ class SessionDialog(QDialog):
     delete_requested = Signal()
     agenda_changed = Signal(str)
     tasks_changed = Signal(str)
+    color_changed = Signal(str)
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -41,6 +43,24 @@ class SessionDialog(QDialog):
         top.addWidget(self.combo, 1)
         for b in (new, dup, ren, dele):
             top.addWidget(b)
+
+        # colour swatches: pick this session's colour (shown on the HUD and in Stats)
+        self.swatches: dict[str, QPushButton] = {}
+        swatch_row = QHBoxLayout()
+        swatch_row.addWidget(QLabel("Colour"))
+        for hex_ in PALETTE:
+            b = QPushButton()
+            b.setCheckable(True)
+            b.setFixedSize(26, 26)
+            b.setToolTip(hex_)
+            b.setStyleSheet(
+                f"QPushButton {{ background: {hex_}; border: 2px solid transparent; border-radius: 13px; padding: 0; }}"
+                "QPushButton:checked { border: 2px solid #e8eef6; }"
+                "QPushButton:hover { border: 2px solid #8a98ac; }")
+            b.clicked.connect(lambda _=False, c=hex_: self.color_changed.emit(c))
+            self.swatches[hex_] = b
+            swatch_row.addWidget(b)
+        swatch_row.addStretch(1)
 
         mono = QFont("Cascadia Mono")
         mono.setStyleHint(QFont.Monospace)
@@ -63,6 +83,7 @@ class SessionDialog(QDialog):
 
         lay = QVBoxLayout(self)
         lay.addLayout(top)
+        lay.addLayout(swatch_row)
         lay.addWidget(self.tabs)
 
         self.combo.activated.connect(lambda i: self.switch_requested.emit(self.combo.itemData(i)))
@@ -92,6 +113,8 @@ class SessionDialog(QDialog):
             self.combo.addItem(session.name, session.id)
         self.combo.setCurrentIndex(max(0, self.combo.findData(store.current_id)))
         self.combo.blockSignals(False)
+        for hex_, b in self.swatches.items():
+            b.setChecked(hex_ == store.current.color)
         self._set(self.agenda, store.current.agenda)
         self._set(self.tasks, format_tasks(store.current.tasks))
         self._update_status()
@@ -128,10 +151,18 @@ class SettingsDialog(QDialog):
         self.s = s
         self.setWindowTitle("Timetable settings")
         form = QFormLayout(self)
+        form.setContentsMargins(22, 18, 22, 18)
+        form.setVerticalSpacing(10)
 
         self.dock = QComboBox()
         self.dock.addItems(["Top", "Bottom"])
         self.dock.setCurrentIndex(0 if s.dock == "top" else 1)
+        self.monitor = QComboBox()
+        self.monitor.addItem("Primary (automatic)", "")
+        for scr in QApplication.screens():
+            g = scr.geometry()
+            self.monitor.addItem(f"{scr.name()}  ({g.width()}x{g.height()})", screen_key(scr))
+        self.monitor.setCurrentIndex(max(0, self.monitor.findData(s.monitor)))
         self.margin = self._spin(0, 300, s.margin, " px")
         self.opacity = QSlider(Qt.Horizontal)
         self.opacity.setRange(0, 100)
@@ -166,6 +197,7 @@ class SettingsDialog(QDialog):
         self.autostart.setChecked(s.autostart)
 
         form.addRow("Dock edge", self.dock)
+        form.addRow("Monitor", self.monitor)
         form.addRow("Edge margin", self.margin)
         form.addRow("Background opacity (full)", self.opacity)
         form.addRow("Background opacity (compact)", self.compact_opacity)
@@ -180,7 +212,7 @@ class SettingsDialog(QDialog):
         form.addRow("Custom sound", row)
         form.addRow(self.autostart)
 
-        for sig in (self.dock.currentIndexChanged, self.margin.valueChanged, self.opacity.valueChanged, self.compact_opacity.valueChanged,
+        for sig in (self.dock.currentIndexChanged, self.monitor.currentIndexChanged, self.margin.valueChanged, self.opacity.valueChanged, self.compact_opacity.valueChanged,
                     self.label_len.valueChanged, self.passed.toggled, self.remaining.toggled,
                     self.on_top.toggled, self.warn.valueChanged, self.ding.toggled,
                     self.volume.valueChanged, self.sound.editingFinished, self.autostart.toggled):
@@ -217,6 +249,7 @@ class SettingsDialog(QDialog):
     def _apply(self) -> None:
         s = self.s
         s.dock = "top" if self.dock.currentIndex() == 0 else "bottom"
+        s.monitor = self.monitor.currentData() or ""
         s.margin = self.margin.value()
         s.opacity = self.opacity.value() / 100
         s.compact_opacity = self.compact_opacity.value() / 100

@@ -17,8 +17,10 @@ class HistoryLog:
     def __init__(self, path: Path | None = None):
         self.path = path or (config_dir() / "history.jsonl")
 
-    def add(self, session_id: str, session_name: str, item: Item, event: str, spent: float) -> None:
-        """event is 'completed' (ran to the end) or 'skipped'. spent is seconds actually run."""
+    def add(self, session_id: str, session_name: str, item: Item, event: str, spent: float,
+            task: str = "", color: str = "") -> None:
+        """event is 'completed' (ran to the end), 'skipped' or 'stopped' (restart, quit or session switch).
+        spent is seconds actually run; task is the task that was current when the interval began."""
         record = {
             "time": datetime.now().astimezone().isoformat(timespec="seconds"),
             "session_id": session_id,
@@ -28,6 +30,8 @@ class HistoryLog:
             "planned_seconds": round(item.seconds),
             "spent_seconds": round(spent),
             "event": event,
+            "task": task,
+            "color": color,
         }
         try:
             with self.path.open("a", encoding="utf-8") as f:

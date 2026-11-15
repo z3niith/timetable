@@ -1,4 +1,4 @@
-from timetable.agenda import Item
+from timetable.agenda import Item, parse_agenda
 from timetable.engine import State, TimerEngine
 
 
@@ -59,3 +59,16 @@ def test_live_agenda_edit_keeps_position():
     eng.tick()
     eng.set_items([Item("A", 200), Item("B", 100), Item("C", 50)])
     assert eng.index == 0 and round(eng.elapsed) == 30
+
+
+def test_interval_start_fires_on_start_skip_and_rollover():
+    now = [0.0]
+    e = TimerEngine(parse_agenda("A 1m\nB 1m\nC 1m"), clock=lambda: now[0])
+    seen = []
+    e.on_interval_start = lambda item: seen.append(item.name)
+    e.on_interval_end = lambda item, last: seen.append("end " + item.name)
+    e.start()
+    now[0] = 61
+    e.tick()
+    e.skip()
+    assert seen == ["A", "end A", "B", "C"]

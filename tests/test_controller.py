@@ -79,3 +79,24 @@ def test_editing_the_agenda_updates_the_running_timer(ctl):
     ctl._agenda_edited("Only 5m")
     assert [i.name for i in ctl.engine.items] == ["Only"]
     assert ctl.store.current.agenda == "Only 5m"
+
+
+def test_partial_interval_is_logged_with_task_and_color(ctl):
+    ctl.store.current.tasks = [__import__("timetable.sessions", fromlist=["Task"]).Task("Read ch. 3")]
+    ctl.do("toggle")
+    ctl.engine.elapsed = 90
+    ctl.do("restart")
+    rec = ctl.history.read()[-1]
+    assert rec["event"] == "stopped" and rec["spent_seconds"] == 90
+    assert rec["task"] == "Read ch. 3" and rec["color"] == ctl.store.current.color
+
+
+def test_nothing_logged_when_idle(ctl):
+    ctl.do("restart")
+    assert ctl.history.read() == []
+
+
+def test_new_sessions_get_distinct_colors(ctl):
+    a = ctl.store.create("A")
+    b = ctl.store.create("B")
+    assert len({ctl.store.sessions[0].color, a.color, b.color}) == 3

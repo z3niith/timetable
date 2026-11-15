@@ -10,6 +10,9 @@ from pathlib import Path
 
 from .settings import DEFAULT_AGENDA, config_dir
 
+# Session colours: the validated dark-surface categorical palette, in its fixed order.
+PALETTE = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#0ca30c", "#9085e9", "#e66767"]
+
 _TASK_LINE = re.compile(r"^(?:[-*]\s*)?(?:\[(?P<mark>[ xX])\]\s*)?(?P<text>\S.*)$")
 
 
@@ -42,6 +45,7 @@ class Session:
     name: str
     agenda: str = DEFAULT_AGENDA
     tasks: list[Task] = field(default_factory=list)
+    color: str = PALETTE[0]
 
     @property
     def current_task(self) -> Task | None:
@@ -72,7 +76,7 @@ class SessionStore:
         self.sessions: list[Session] = []
         self.current_id = ""
         if not self._load():
-            first = Session(_new_id(), "My session", legacy_agenda or DEFAULT_AGENDA)
+            first = Session(_new_id(), "My session", legacy_agenda or DEFAULT_AGENDA, [], PALETTE[0])
             self.sessions, self.current_id = [first], first.id
             self.save()
 
@@ -86,7 +90,8 @@ class SessionStore:
 
     # -- changes --------------------------------------------------------
     def create(self, name: str, agenda: str = DEFAULT_AGENDA, tasks: list[Task] | None = None) -> Session:
-        session = Session(_new_id(), self._unique_name(name.strip() or "New session"), agenda, tasks or [])
+        session = Session(_new_id(), self._unique_name(name.strip() or "New session"), agenda, tasks or [],
+                          self._next_color())
         self.sessions.append(session)
         self.save()
         return session
@@ -96,7 +101,22 @@ class SessionStore:
         if src is None:
             return None
         copy = [Task(t.text, False) for t in src.tasks]
-        return self.create(f"{src.name} copy", src.agenda, copy)
+        made = self.create(f"{src.name} copy", src.agenda, copy)
+        return made
+
+    def set_color(self, session_id: str, color: str) -> None:
+        session = self.get(session_id)
+        if session and color and color != session.color:
+            session.color = color
+            self.save()
+
+    def _next_color(self) -> str:
+        """The first palette colour no session uses yet; cycles once all are taken."""
+        used = [s.color for s in self.sessions]
+        for color in PALETTE:
+            if color not in used:
+                return color
+        return PALETTE[len(self.sessions) % len(PALETTE)]
 
     def rename(self, session_id: str, name: str) -> None:
         session = self.get(session_id)
@@ -136,8 +156,9 @@ class SessionStore:
                 Session(
                     str(s["id"]), str(s["name"]), str(s.get("agenda", "")),
                     [Task(str(t["text"]), bool(t.get("done"))) for t in s.get("tasks", [])],
+                    str(s.get("color") or PALETTE[i % len(PALETTE)]),
                 )
-                for s in data["sessions"]
+                for i, s in enumerate(data["sessions"])
             ]
         except (OSError, ValueError, KeyError, TypeError):
             return False
@@ -153,7 +174,7 @@ class SessionStore:
             "current": self.current_id,
             "sessions": [
                 {
-                    "id": s.id, "name": s.name, "agenda": s.agenda,
+                    "id": s.id, "name": s.name, "agenda": s.agenda, "color": s.color,
                     "tasks": [{"text": t.text, "done": t.done} for t in s.tasks],
                 }
                 for s in self.sessions
