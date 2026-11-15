@@ -10,8 +10,10 @@ from PySide6.QtWidgets import QWidget
 
 from .agenda import format_clock, format_short
 from .engine import State, TimerEngine
+from .screens import Rect, dock_rect, pick_screen
 from .sessions import SessionStore
 from .settings import Settings
+from .winpos import mark_no_activate, raise_topmost
 
 FULL_H, COMPACT_H, BUTTON_ROW = 86, 46, 32
 
@@ -40,6 +42,17 @@ class Hud(QWidget):
         self._ticker = QTimer(self, interval=100)
         self._ticker.timeout.connect(self._on_tick)
         self._ticker.start()
+
+        # Keep the bar on top of other windows, and on the right monitor at the right size.
+        self._top_timer = QTimer(self, interval=1000)
+        self._top_timer.timeout.connect(self._assert_top)
+        self._top_timer.start()
+        self._settle = QTimer(self, singleShot=True, interval=300)
+        self._settle.timeout.connect(self._screens_settled)
+        self._watched: set[int] = set()
+        app = QGuiApplication.instance()
+        for signal in (app.screenAdded, app.screenRemoved, app.primaryScreenChanged):
+            signal.connect(self._screens_changed)
         self.apply_window_state()
 
     # -- window behaviour -------------------------------------------------
@@ -54,14 +67,58 @@ class Hud(QWidget):
             self.setWindowFlags(flags)
         self.reposition()
         self.show()
+        self._assert_top()
+
+    def _assert_top(self) -> None:
+        """Windows can push the bar below other windows; put it back without taking focus."""
+        if not self.isVisible():
+            return
+        hwnd = int(self.winId())
+        mark_no_activate(hwnd)
+        if self.s.keep_on_top:
+            raise_topmost(hwnd)
+
+    def target_screen(self):
+        app = QGuiApplication.instance()
+        return pick_screen(app.screens(), app.primaryScreen(), self.s.monitor)
+
+    def target_rect(self) -> Rect | None:
+        screen = self.target_screen()
+        if screen is None:
+            return None
+        g = screen.availableGeometry()  # excludes the taskbar
+        h = (COMPACT_H if self.s.compact else FULL_H) + (0 if self.s.click_through else BUTTON_ROW)
+        return dock_rect(Rect(g.x(), g.y(), g.width(), g.height()), h, self.s.dock, self.s.margin)
 
     def reposition(self) -> None:
-        h = (COMPACT_H if self.s.compact else FULL_H) + (0 if self.s.click_through else BUTTON_ROW)
-        screen = QGuiApplication.primaryScreen()
-        g = screen.availableGeometry()
-        m = max(0, self.s.margin)
-        y = g.top() + m if self.s.dock == "top" else g.bottom() + 1 - h - m
-        self.setGeometry(g.left(), y, g.width(), h)
+        rect = self.target_rect()
+        if rect is None:
+            return
+        self._watch_screens()
+        handle = self.windowHandle()
+        screen = self.target_screen()
+        if handle is not None and handle.screen() is not screen:
+            handle.setScreen(screen)  # so DPI scaling matches the monitor it is moving to
+        self.setGeometry(rect.x, rect.y, rect.w, rect.h)
+
+    # -- monitors being plugged, unplugged or changing resolution -----------
+    def _watch_screens(self) -> None:
+        for screen in QGuiApplication.instance().screens():
+            if id(screen) in self._watched:
+                continue
+            self._watched.add(id(screen))
+            screen.geometryChanged.connect(self._screens_changed)
+            screen.availableGeometryChanged.connect(self._screens_changed)
+            screen.logicalDotsPerInchChanged.connect(self._screens_changed)
+
+    def _screens_changed(self, *_args) -> None:
+        # Windows sends several events for one change; wait for them to finish.
+        self._settle.start()
+
+    def _screens_settled(self) -> None:
+        self.reposition()
+        self._assert_top()
+        self.update()
 
     def _on_tick(self) -> None:
         self.engine.tick()
@@ -201,6 +258,12 @@ class Hud(QWidget):
         room = limit - x
         if room < 60:
             return
+        # A dot in the session's colour, so you can tell sessions apart at a glance.
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(session.color))
+        p.drawEllipse(QPointF(x + 4, 19), 4, 4)
+        x += 14
+        room -= 14
         f_name, f_task = self._font(11, True), self._font(12)
         name_fm = QFontMetrics(f_name)
         has_tasks = bool(session.tasks)
@@ -285,7 +348,7 @@ class Hud(QWidget):
         specs = [
             ("toggle", "Pause" if running else "Start"), ("restart", "Restart"),
             ("minus", "-1 min"), ("plus", "+1 min"), ("skip", "Skip"),
-            ("task", "Tick task"), ("sessions", "Sessions"), ("compact", "Compact"), ("settings", "Settings"),
+            ("task", "Tick task"), ("sessions", "Sessions"), ("stats", "Stats"), ("compact", "Compact"), ("settings", "Settings"),
             ("lock", "Lock (click-through)"),
         ]
         f = self._font(11)

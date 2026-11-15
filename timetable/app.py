@@ -18,6 +18,8 @@ from .hud import Hud
 from .sessions import SessionStore, parse_tasks
 from .settings import Settings
 from .sound import SoundPlayer
+from .stats_window import StatsWindow
+from .theme import apply_theme
 
 
 def make_icon(accent: str) -> QIcon:
@@ -61,9 +63,12 @@ class Controller:
         self.engine = TimerEngine(parse_agenda(self.store.current.agenda))
         self.sound = SoundPlayer(self.s)
         self.engine.on_interval_end = self._interval_ended
+        self.engine.on_interval_start = self._interval_started
+        self._task_at_start = ""
         self.hud = Hud(self.engine, self.s, self.store)
         self.hud.action.connect(self.do)
-        self.session_dlg = self.settings_dlg = None
+        self.session_dlg = self.settings_dlg = self.stats_dlg = None
+        apply_theme(app, self.s.accent)
         self._build_tray()
         self._register_hotkeys()
         t = QTimer(app, interval=1000)
@@ -72,10 +77,29 @@ class Controller:
         self._refresh_tooltip()
 
     # -- timer events ------------------------------------------------------
+    def _interval_started(self, item) -> None:
+        """Remember which task was current when the interval began; the time is credited to it."""
+        task = self.store.current.current_task
+        self._task_at_start = task.text if task else ""
+
+    def _log(self, item, event: str, spent: float) -> None:
+        session = self.store.current
+        self.history.add(session.id, session.name, item, event, spent, self._task_at_start, session.color)
+        if self.stats_dlg is not None and self.stats_dlg.isVisible():
+            self.stats_dlg.refresh()
+
     def _interval_ended(self, item, last: bool) -> None:
         self.sound.play("done" if last else "ding")
-        session = self.store.current
-        self.history.add(session.id, session.name, item, "completed", item.seconds)
+        self._log(item, "completed", item.seconds)
+
+    def _log_partial(self) -> None:
+        """Record the time spent in an interval that is being abandoned (restart, switch, quit)."""
+        e = self.engine
+        if e.state not in (State.RUNNING, State.PAUSED) or not e.current:
+            return
+        e.tick()
+        if e.state in (State.RUNNING, State.PAUSED) and e.current and e.elapsed >= 1:
+            self._log(e.current, "stopped", e.elapsed)
 
     def _skip(self) -> None:
         e = self.engine
@@ -84,8 +108,7 @@ class Controller:
         active = e.state in (State.RUNNING, State.PAUSED)
         e.skip()
         if item and active and spent >= 1:
-            session = self.store.current
-            self.history.add(session.id, session.name, item, "skipped", spent)
+            self._log(item, "skipped", spent)
 
     # -- actions -----------------------------------------------------------
     def do(self, name: str) -> None:
@@ -93,6 +116,7 @@ class Controller:
         if name == "toggle":
             e.toggle()
         elif name == "restart":
+            self._log_partial()
             e.restart()
         elif name == "skip":
             self._skip()
@@ -114,6 +138,8 @@ class Controller:
             self.show_sessions()
         elif name == "settings":
             self.show_settings()
+        elif name == "stats":
+            self.show_stats()
         elif name == "quit":
             self.quit()
         self.hud.update()
@@ -140,6 +166,7 @@ class Controller:
             dlg.delete_requested.connect(self._delete_session)
             dlg.agenda_changed.connect(self._agenda_edited)
             dlg.tasks_changed.connect(self._tasks_edited)
+            dlg.color_changed.connect(self._set_color)
         self.session_dlg.refresh(self.store)
         self._raise(self.session_dlg)
 
@@ -159,6 +186,7 @@ class Controller:
                 if self.session_dlg is not None:
                     self.session_dlg.refresh(self.store)  # put the picker back
                 return
+        self._log_partial()
         self.store.select(session_id)
         self._load_current_session()
 
@@ -195,8 +223,10 @@ class Controller:
         answer = QMessageBox.question(
             self.session_dlg, "Delete session?", f"Delete \"{current.name}\" and its tasks? This can't be undone."
         )
-        if answer == QMessageBox.Yes and self.store.delete(current.id):
-            self._load_current_session()
+        if answer == QMessageBox.Yes:
+            self._log_partial()
+            if self.store.delete(current.id):
+                self._load_current_session()
 
     def _agenda_edited(self, text: str) -> None:
         self.store.current.agenda = text
@@ -208,6 +238,16 @@ class Controller:
         self.store.current.tasks = parse_tasks(text)
         self.store.save()
         self.hud.update()
+
+    def _set_color(self, color: str) -> None:
+        self.store.set_color(self.store.current_id, color)
+        self.hud.update()
+
+    # -- stats -------------------------------------------------------------
+    def show_stats(self) -> None:
+        if self.stats_dlg is None:
+            self.stats_dlg = StatsWindow(self.history, self.s.accent)
+        self._raise(self.stats_dlg)
 
     # -- settings ----------------------------------------------------------
     def show_settings(self) -> None:
@@ -221,6 +261,9 @@ class Controller:
         self.sound.reload()
         set_autostart(self.s.autostart)
         self.tray.setIcon(make_icon(self.s.accent))
+        apply_theme(self.app, self.s.accent)
+        if self.stats_dlg is not None:
+            self.stats_dlg.set_accent(self.s.accent)
         self.hud.apply_window_state()
         self.hud.update()
 
@@ -244,6 +287,7 @@ class Controller:
         self.act_compact = self._checkable(menu, "Compact mode", self.s.compact, "compact")
         self.act_unlock = self._checkable(menu, "Interactive mode (unlock)", not self.s.click_through, "lock")
         menu.addAction("Sessions...", lambda: self.do("sessions"))
+        menu.addAction("Stats...", lambda: self.do("stats"))
         menu.addAction("Settings...", lambda: self.do("settings"))
         menu.addSeparator()
         menu.addAction("Quit", lambda: self.do("quit"))
@@ -309,10 +353,12 @@ class Controller:
             (ord("C"), "compact"),
             (ord("L"), "lock"),
             (ord("E"), "sessions"),
+            (ord("S"), "stats"),
         ):
             self.hotkeys.register(mod, vk, lambda a=action: self.do(a))
 
     def quit(self) -> None:
+        self._log_partial()
         self.hotkeys.unregister_all()
         self.tray.hide()
         self.s.save()
