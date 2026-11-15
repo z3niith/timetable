@@ -1,9 +1,7 @@
 # Timetable
 
-An interval timer that floats over your screen, **always on top and click-through**, so you can see where you are in a
-study or work session without it ever getting in the way. Built for focus, including with ADHD.
-
-![The Timetable HUD docked to the top of the screen](assets/screenshots/hud.png)
+An interval timer that floats over your screen, **always on top and click-through**, so you can see
+where you are in a study or work session without it ever getting in the way.
 
 ## Install
 
@@ -14,12 +12,18 @@ winget install z3niith.Timetable
 Or download `Timetable-Setup-<version>.exe` from the [Releases page](https://github.com/z3niith/timetable/releases).
 It installs for your user only, with no admin prompt.
 
-An icon appears in the system tray. On Windows 11 it may be tucked behind the `^` arrow; drag it out to pin it.
+**Winget (recommended):** Run the winget command:
+```powershell
+winget install z3niith.Timetable
+```
 
-<details>
-<summary>Run from source</summary>
+**Installer (recommended):** download `Timetable-Setup-<version>.exe` from the
+[Releases page](https://github.com/z3niith/timetable/releases). It installs for your user only, with no admin prompt.
+Once the winget package is accepted: `winget install z3niith.Timetable`.
 
-You need Python 3.10 or newer on Windows.
+
+
+**From source (not recommended):** you need Python 3.10 or newer on Windows.
 
 ```powershell
 python -m pip install -r requirements.txt
@@ -110,8 +114,7 @@ python -m pytest
 ruff check .
 ```
 
-The timer logic (`engine.py`, `agenda.py`) and the stats maths (`stats.py`) have no GUI dependency and are unit tested.
-See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+The timer logic (`engine.py`, `agenda.py`) has no GUI dependency and is unit tested.
 
 ## Ideas for later
 

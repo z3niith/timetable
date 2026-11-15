@@ -1,6 +1,3 @@
-; Inno Setup script. Build with: iscc /DAppVersion=0.1.0 installer\Timetable.iss
-; Run from the repository root after PyInstaller has produced dist\Timetable\
-
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif

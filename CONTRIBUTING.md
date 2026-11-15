@@ -2,7 +2,7 @@
 
 Pull requests are welcome. For larger additions, please consult with z3niith
 
-Timetable, as of `v0.1.0`, has only been made for and tested on Windows; I am unsure of when a MacOS or Linux version may be released.
+Timetable, as of `v0.2.0`, has only been made for and tested on Windows; I am unsure of when a MacOS or Linux version may be released.
 
 ## Contribution expectations
 
