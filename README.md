@@ -50,7 +50,8 @@ python -m timetable
 - **Stats window** (`Ctrl+Alt+S`) with Day, Week and Month views: a calendar, time per session, a 24-hour timeline, daily bars, top tasks and your streak.
 - Everything stays on your computer.
 
-![Stats window, month view](assets/screenshots/stats.png)
+![Stats window, month view](<img width="900" height="780" alt="image" src="https://github.com/user-attachments/assets/776217a4-d9e0-4da5-bcce-a22bc0f83e98" />
+)
 
 **Sound and alerts**
 - **Ding** at the end of every interval and a three-note chime when the agenda finishes. Volume and a custom `.wav` are in Settings.
@@ -65,7 +66,8 @@ A **session** is a name, a colour, an agenda and a to-do list. Open **Sessions..
 choose, create, duplicate, rename or delete one. Switching sessions restarts the timer and asks first if it is
 part-way through. Everything you type is saved straight away.
 
-![Sessions window](assets/screenshots/sessions.png)
+![Sessions window](<img width="594" height="560" alt="image" src="https://github.com/user-attachments/assets/a5efcf95-3058-4e52-941f-fe94eb56ee55" />
+)
 
 **Agenda:** one interval per line, a name then a length: `50m`, `1h30m`, `45s`, or a bare number (minutes).
 Names starting with Break, Rest, Lunch or Pause are drawn as breaks. Lines starting with `#` are ignored.
